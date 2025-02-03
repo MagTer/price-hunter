@@ -13,17 +13,16 @@ namespace PriceHunter
             _settings = settings;
         }
 
-        // Simulerar webb-scraping: returnerar en dictionary med produkt-ID och ett slumpmässigt pris.
+        // Simulate web scraping: returns a dictionary with product ID and a random price
         public Dictionary<string, decimal> RunScraping()
         {
             Console.WriteLine("Simulating web scraping for current prices...");
-
             var random = new Random();
             var prices = new Dictionary<string, decimal>();
 
             foreach (var product in _settings.Products)
             {
-                // Simulera ett pris inom ±20% av target price
+                // Simulate a price fluctuation within ±20% of target price
                 double fluctuation = random.NextDouble() * 0.4 - 0.2;
                 decimal currentPrice = product.TargetPrice * (1 + (decimal)fluctuation);
                 prices[product.ProductId] = Math.Round(currentPrice, 2);
