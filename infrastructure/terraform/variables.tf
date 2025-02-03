@@ -11,22 +11,22 @@ variable "tenant_id" {
 }
 
 variable "resource_group_name" {
-  description = "price-hunter-rg"
+  description = "Name of the Azure Resource Group"
   type        = string
 }
 
 variable "location" {
   description = "Azure region where resources will be deployed"
   type        = string
-  default     = "Sweden Central"
+  default     = "West Europe"
 }
 
 variable "app_service_plan_name" {
-  description = "price-hunter-plan"
+  description = "Name of the App Service Plan"
   type        = string
 }
 
 variable "web_app_name" {
-  description = "price-hunter"
+  description = "Name of the Web App"
   type        = string
 }
