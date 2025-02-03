@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using System.Text.Json;
 using PriceHunter.Configuration;
-using System.Collections.Generic;
 
 namespace PriceHunter
 {
@@ -10,7 +9,7 @@ namespace PriceHunter
     {
         public static void Main(string[] args)
         {
-            // Ladda konfigurationen från config/appsettings.json
+            // Load configuration from config/appsettings.json
             string configPath = Path.Combine("config", "appsettings.json");
             if (!File.Exists(configPath))
             {
@@ -27,11 +26,11 @@ namespace PriceHunter
             Console.WriteLine($"Products: {settings.Products.Count}");
             Console.WriteLine($"Notification Method: {settings.Notifications.Method}");
 
-            // Simulera webb-scraping för att hämta aktuella priser
+            // Run web scraping simulation
             var scraper = new ScraperService(settings);
-            Dictionary<string, decimal> priceData = scraper.RunScraping();
+            var priceData = scraper.RunScraping();
 
-            // Kontrollera priser och notifiera vid prisnedgång
+            // Check prices and send notifications
             var notifier = new NotifierService(settings.Notifications);
             notifier.CheckAndNotify(priceData, settings.Products);
 
