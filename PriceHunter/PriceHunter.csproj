@@ -5,11 +5,5 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
-  <ItemGroup>
-    <Compile Include="Program.cs" />
-    <Compile Include="Configuration.cs" />
-    <Compile Include="ScraperService.cs" />
-    <Compile Include="NotifierService.cs" />
-    <Compile Include="Notifications\HomeyNotifier.cs" />
-  </ItemGroup>
+  <!-- Ingen explicit ItemGroup för Compile behövs, eftersom .NET SDK implicit inkluderar alla .cs-filer i projektmappen -->
 </Project>
