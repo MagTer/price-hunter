@@ -10,7 +10,7 @@ namespace PriceHunter.Tests
         [Fact]
         public async Task SendNotificationAsync_InvalidUrl_ReturnsFalse()
         {
-            // Ange en ogiltig URL för att simulera ett misslyckat anrop
+            // Use an invalid URL to simulate a failure
             var config = new NotificationConfig
             {
                 Method = "Homey",
