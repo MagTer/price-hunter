@@ -43,10 +43,10 @@ jobs:
         run: terraform validate -no-color
       
       - name: Terraform Plan
-        run: terraform plan -no-color -input=false -var "resource_group_name=price-hunter-rg" -var "location=West Europe" -var "app_service_plan_name=price-hunter-plan" -var "web_app_name=price-hunter-webapp-${{ github.run_number }}"
+        run: terraform plan -no-color -input=false -var "resource_group_name=PriceHunter-RG" -var "location=West Europe" -var "app_service_plan_name=PriceHunterPlan" -var "web_app_name=pricehunter-webapp-${{ github.run_number }}"
       
       - name: Terraform Apply
-        run: terraform apply -auto-approve -input=false -var "resource_group_name=price-hunter-rg" -var "location=West Europe" -var "app_service_plan_name=price-hunter-plan" -var "web_app_name=price-hunter-webapp-${{ github.run_number }}"
+        run: terraform apply -auto-approve -input=false -var "resource_group_name=PriceHunter-RG" -var "location=West Europe" -var "app_service_plan_name=PriceHunterPlan" -var "web_app_name=pricehunter-webapp-${{ github.run_number }}"
 
   DeployApp:
     name: Deploy Price Hunter Application
@@ -66,18 +66,19 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v2
         with:
-          dotnet-version: '7.0.x'
+          dotnet-version: '8.0.x'
       
       - name: Restore and Publish Price Hunter
+        working-directory: PriceHunter
         run: |
           dotnet restore
           dotnet publish -c Release -o publish
-          
+      
       - name: Archive Published Files
         run: |
-          cd publish
-          zip -r ../pricehunter.zip .
+          cd PriceHunter/publish
+          zip -r ../../pricehunter.zip .
       
       - name: Deploy to Azure Web App via CLI
         run: |
-          az webapp deployment source config-zip --resource-group price-hunter-rg --name price-hunter-webapp-${{ github.run_number }} --src pricehunter.zip
+          az webapp deployment source config-zip --resource-group PriceHunter-RG --name pricehunter-webapp-${{ github.run_number }} --src pricehunter.zip
