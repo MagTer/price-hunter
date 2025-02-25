@@ -1,8 +1,9 @@
-name: CI/CD Deploy Price Hunter
+name: Price Hunter Deployment
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -11,74 +12,85 @@ permissions:
 
 jobs:
   TerraformDeploy:
-    name: Deploy Infrastructure with Terraform
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./infrastructure/terraform
-    env:
-      ARM_CLIENT_ID: ${{ secrets.AZURE_INFRADEPLOYMENT_CLIENTID }}
-      ARM_TENANT_ID: ${{ secrets.AZURE_TERNSTROM_TENANTID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_TERNSTROM_SUBSCRIPTIONID }}
+    environment: Production
+
     steps:
-      - name: Checkout Repository
+      - name: Checkout code
         uses: actions/checkout@v3
-      
-      - name: Login to Azure with OIDC
-        uses: azure/login@v1
-        with:
-          client-id: ${{ secrets.AZURE_INFRADEPLOYMENT_CLIENTID }}
-          tenant-id: ${{ secrets.AZURE_TERNSTROM_TENANTID }}
-          allow-no-subscriptions: true
-      
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: '1.3.9'
-      
-      - name: Terraform Init
-        run: terraform init
-      
-      - name: Terraform Validate
-        run: terraform validate -no-color
-      
-      - name: Terraform Plan
-        run: terraform plan -no-color -input=false -var "resource_group_name=PriceHunter-RG" -var "location=West Europe" -var "app_service_plan_name=PriceHunterPlan" -var "web_app_name=pricehunter-webapp-${{ github.run_number }}"
-      
-      - name: Terraform Apply
-        run: terraform apply -auto-approve -input=false -var "resource_group_name=PriceHunter-RG" -var "location=West Europe" -var "app_service_plan_name=PriceHunterPlan" -var "web_app_name=pricehunter-webapp-${{ github.run_number }}"
+          terraform_version: 1.1.7
 
-  DeployApp:
-    name: Deploy Price Hunter Application
-    runs-on: ubuntu-latest
-    needs: TerraformDeploy
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
-
-      - name: Login to Azure with OIDC
+      - name: Configure Azure Credentials
         uses: azure/login@v1
         with:
-          client-id: ${{ secrets.AZURE_INFRADEPLOYMENT_CLIENTID }}
-          tenant-id: ${{ secrets.AZURE_TERNSTROM_TENANTID }}
-          allow-no-subscriptions: true
-      
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Terraform Init
+        id: init
+        run: terraform init -backend-config="resource_group_name=${{ secrets.AZURE_RG }}" -backend-config="storage_account_name=${{ secrets.AZURE_SA }}"
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        id: plan
+        run: terraform plan -no-color
+        continue-on-error: true
+
+      - name: Terraform Apply
+        id: apply
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: terraform apply -auto-approve -no-color
+
+      - name: Terraform Plan Status
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
+
+  DeployApp:
+    needs: TerraformDeploy
+    runs-on: windows-latest
+    environment: Production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
       - name: Setup .NET
-        uses: actions/setup-dotnet@v2
+        uses: actions/setup-dotnet@v3
         with:
-          dotnet-version: '8.0.x'
-      
-      - name: Restore and Publish Price Hunter
-        working-directory: PriceHunter
-        run: |
-          dotnet restore
-          dotnet publish -c Release -o publish
-      
-      - name: Archive Published Files
-        run: |
-          cd PriceHunter/publish
-          zip -r ../../pricehunter.zip .
-      
-      - name: Deploy to Azure Web App via CLI
-        run: |
-          az webapp deployment source config-zip --resource-group PriceHunter-RG --name pricehunter-webapp-${{ github.run_number }} --src pricehunter.zip
+          dotnet-version: '8.0'
+
+      - name: Restore dependencies
+        run: dotnet restore PriceHunter/PriceHunter.csproj
+
+      - name: Build
+        run: dotnet build PriceHunter/PriceHunter.csproj --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test PriceHunter.Tests/PriceHunter.Tests.csproj --configuration Release --no-restore --logger="trx;LogFileName=test-results.trx"
+
+      - name: Publish
+        run: dotnet publish PriceHunter/PriceHunter.csproj --configuration Release --no-restore --output ./publish
+
+      - name: Zip artifact for deployment
+        run: Compress-Archive -Path ./publish/* -DestinationPath pricehunter.zip
+
+      - name: Configure Azure Credentials
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+          package: pricehunter.zip

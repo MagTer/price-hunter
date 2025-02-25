@@ -1,41 +1,55 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
+using Serilog;
+using PriceHunter.Services;
+using System.Threading.Tasks;
 using System;
-using System.IO;
-using System.Text.Json;
-using PriceHunter.Configuration;
 
 namespace PriceHunter
 {
-    public class Program
+  class Program
+  {
+    static async Task Main(string[] args)
     {
-        public static void Main(string[] args)
-        {
-            // Load configuration from config/appsettings.json
-            string configPath = Path.Combine("config", "appsettings.json");
-            if (!File.Exists(configPath))
-            {
-                Console.WriteLine("Configuration file not found: " + configPath);
-                return;
-            }
+      // Configuration
+      var configuration = new ConfigurationBuilder()
+          .SetBasePath(Directory.GetCurrentDirectory())
+          .AddJsonFile("config/appsettings.json", optional: false, reloadOnChange: true)
+          .Build();
 
-            string json = File.ReadAllText(configPath);
-            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            AppSettings settings = JsonSerializer.Deserialize<AppSettings>(json, options);
+      // Logging
+      Log.Logger = new LoggerConfiguration()
+          .ReadFrom.Configuration(configuration)
+          .CreateLogger();
 
-            Console.WriteLine("Loaded Configuration:");
-            Console.WriteLine($"Stores: {settings.Stores.Count}");
-            Console.WriteLine($"Products: {settings.Products.Count}");
-            Console.WriteLine($"Notification Method: {settings.Notifications.Method}");
+      // Dependency Injection
+      var serviceProvider = new ServiceCollection()
+          .AddSingleton<IConfiguration>(configuration)
+          .AddSingleton<ScraperService>()
+          .AddSingleton<NotifierService>()
+          .AddTransient<HomeyNotifier>()
+          .AddHttpClient<HomeyNotifier>() // Register HttpClient
+          .AddLogging(loggingBuilder => loggingBuilder.AddSerilog(Log.Logger))
+          .BuildServiceProvider();
 
-            // Run web scraping simulation
-            var scraper = new ScraperService(settings);
-            var priceData = scraper.RunScraping();
+      // Resolve services
+      var scraperService = serviceProvider.GetService<ScraperService>();
+      var notifierService = serviceProvider.GetService<NotifierService>();
 
-            // Check prices and send notifications
-            var notifier = new NotifierService(settings.Notifications);
-            notifier.CheckAndNotify(priceData, settings.Products);
-
-            Console.WriteLine("Process complete. Press any key to exit.");
-            Console.ReadKey();
-        }
+      try
+      {
+        // Run the price hunting process
+        await scraperService.HuntPrices();
+        await notifierService.SendNotifications();
+      }
+      catch (Exception ex)
+      {
+        Log.Error(ex, "An error occurred during the price hunting process.");
+      }
+      finally
+      {
+        Log.CloseAndFlush();
+      }
     }
+  }
 }
